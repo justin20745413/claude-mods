@@ -1,0 +1,18 @@
+{
+  "name": "my-mods",
+  "owner": {
+    "name": "justin"
+  },
+  "plugins": [
+    {
+      "name": "file-log",
+      "source": "./file-log",
+      "description": "右側面板列出修改與新增的檔案"
+    },
+    {
+      "name": "zh-translate",
+      "source": "./zh-translate",
+      "description": "按一下「中文」按鈕，Claude 的回覆和選擇題都會變成繁體中文"
+    }
+  ]
+}

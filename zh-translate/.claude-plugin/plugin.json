@@ -1,0 +1,6 @@
+{
+  "name": "zh-translate",
+  "version": "0.3.0",
+  "description": "按一下「中文」按鈕，Claude 的回覆和選擇題都會變成繁體中文",
+  "types": "./types/index.d.ts"
+}
