@@ -10,9 +10,19 @@
       "description": "一次安裝全部 mod（file-log、zh-translate）"
     },
     {
+      "name": "no-game",
+      "source": "./no-game",
+      "description": "一次安裝全部工具，不含小遊戲（file-log-nogame、zh-translate）"
+    },
+    {
       "name": "file-log",
       "source": "./file-log",
       "description": "右側面板列出修改與新增的檔案"
+    },
+    {
+      "name": "file-log-nogame",
+      "source": "./file-log-nogame",
+      "description": "右側面板列出修改與新增的檔案（不含小遊戲）"
     },
     {
       "name": "zh-translate",

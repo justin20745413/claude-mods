@@ -1,6 +1,10 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { MockClock } from 'claude-code/testing'
+import { GAMES } from '../hooks/features'
+
+// Game tests run only in the copy that ships the games.
+const gameTest: typeof test = GAMES ? test : () => {}
 
 // 2026-10-17 20:00 UTC is 04:00 on the 18th in +0800, so the day key must be local.
 const NOW = Date.UTC(2026, 9, 17, 20, 0)
@@ -142,7 +146,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     ])
   })
 
-  test(`snake is driven by arrow keys and keeps the best score on ${surface}`, async ($, on) => {
+  gameTest(`snake is driven by arrow keys and keeps the best score on ${surface}`, async ($, on) => {
     const store = world(on, [], '+0800')
     const ui = await $.ui.mount({ plugin: 'file-log', surface, component: 'Pane', requestId: 'file-log', props: PANE_PROPS })
     await ui.press({ key: 'tab-game' })
@@ -194,7 +198,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
 }
 
 for (const surface of ['terminal', 'desktop'] as const) {
-  test(`the snake tab takes the keyboard and the controller drives the board on ${surface}`, async ($, on) => {
+  gameTest(`the snake tab takes the keyboard and the controller drives the board on ${surface}`, async ($, on) => {
     world(on, [], '+0800')
     const ui = await $.ui.mount({ plugin: 'file-log', surface, component: 'Pane', requestId: 'file-log', props: PANE_PROPS })
     await ui.press({ key: 'tab-game' })
@@ -211,7 +215,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await ui.find({ text: '遊戲結束', in: 'snake' })).toBeDefined()
   })
 
-  test(`the game menu opens the dino, space starts it and it scores on ${surface}`, async ($, on) => {
+  gameTest(`the game menu opens the dino, space starts it and it scores on ${surface}`, async ($, on) => {
     world(on, [], '+0800')
     const ui = await $.ui.mount({ plugin: 'file-log', surface, component: 'Pane', requestId: 'file-log', props: PANE_PROPS })
     await ui.press({ key: 'tab-game' })
@@ -228,7 +232,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
 }
 
 for (const surface of ['terminal', 'desktop'] as const) {
-  test(`a bigger pane gets a bigger board on ${surface}`, async ($, on) => {
+  gameTest(`a bigger pane gets a bigger board on ${surface}`, async ($, on) => {
     world(on, [], '+0800')
     const big = { title: '檔案紀錄', isFocused: false, bodyColumns: 80, placement: 'dock', scroll: { bodyRows: 40 } } as never
     const ui = await $.ui.mount({ plugin: 'file-log', surface, component: 'Pane', requestId: 'file-log', props: big })
@@ -242,7 +246,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
 const DAY = 24 * 60 * 60 * 1000
 
 for (const surface of ['terminal', 'desktop'] as const) {
-  test(`a high score is kept 7 days, then cleared on ${surface}`, async ($, on) => {
+  gameTest(`a high score is kept 7 days, then cleared on ${surface}`, async ($, on) => {
     const store = world(on, [], '+0800')
     store.set('snake:best', { score: 12, at: NOW - 6 * DAY })
     store.set('dino:best', { score: 300, at: NOW - 8 * DAY })
@@ -258,12 +262,21 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(store.has('dino:best')).toBe(false)
   })
 
-  test(`an old plain-number record starts its 7 days now on ${surface}`, async ($, on) => {
+  gameTest(`an old plain-number record starts its 7 days now on ${surface}`, async ($, on) => {
     const store = world(on, [], '+0800')
     store.set('snake:best', 5)
     const ui = await $.ui.mount({ plugin: 'file-log', surface, component: 'Pane', requestId: 'file-log', props: PANE_PROPS })
     await ui.press({ key: 'tab-game' })
     await ui.press({ key: 'menu-snake' })
     expect(store.get('snake:best')).toEqual({ score: 5, at: NOW })
+  })
+}
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`the game tab is there only when the games ship on ${surface}`, async ($, on) => {
+    world(on, [], '+0800')
+    const ui = await $.ui.mount({ plugin: 'file-log', surface, component: 'Pane', requestId: 'file-log', props: PANE_PROPS })
+    expect((await ui.find({ key: 'tab-game' })) !== undefined).toBe(GAMES)
+    expect(await ui.find({ key: 'tab-session' })).toBeDefined()
   })
 }

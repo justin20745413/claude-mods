@@ -1,0 +1,6 @@
+{
+  "name": "no-game",
+  "version": "0.1.0",
+  "description": "一次安裝全部工具，不含小遊戲（file-log-nogame、zh-translate）",
+  "dependencies": ["file-log-nogame", "zh-translate"]
+}

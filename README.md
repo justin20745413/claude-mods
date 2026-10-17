@@ -21,10 +21,19 @@ Claude Code 的兩個 mod：
 claude plugin install all --marketplace justin20745413/claude-mods
 ```
 
+## 一次安裝全部工具，不要小遊戲
+
+```
+/plugin install no-game --marketplace justin20745413/claude-mods
+```
+
+會裝 file-log-nogame 和 zh-translate。file-log-nogame 跟 file-log 功能一樣，但不含貪食蛇和小恐龍，面板上也沒有 game 分頁。（file-log 和 file-log-nogame 選一個裝就好。）
+
 ## 只裝其中一個
 
 ```
 /plugin install file-log --marketplace justin20745413/claude-mods
+/plugin install file-log-nogame --marketplace justin20745413/claude-mods
 /plugin install zh-translate --marketplace justin20745413/claude-mods
 ```
 
@@ -38,4 +47,14 @@ claude plugin install all --marketplace justin20745413/claude-mods
 claude plugin marketplace update my-mods
 claude plugin update file-log@my-mods
 claude plugin update zh-translate@my-mods
+```
+
+（裝的是無遊戲版的話，把 `file-log@my-mods` 換成 `file-log-nogame@my-mods`。）
+
+## 給維護者
+
+`file-log-nogame` 是由 `file-log` 自動產生的，不要直接改它。改完 `file-log` 後執行：
+
+```
+./scripts/make-nogame.sh
 ```

@@ -1,6 +1,6 @@
 {
   "name": "file-log",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "右側面板列出這次對話修改與新增的檔案，並可查看今天所有對話的紀錄",
   "types": "./types/index.d.ts"
 }

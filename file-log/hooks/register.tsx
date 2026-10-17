@@ -1,6 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
+import { GAMES } from './features'
 import type { DayEntry, FileEntry, FileKind, FileLogTab, GameCmd, GameView } from '../types'
 
 const PANE = 'file-log'
@@ -222,7 +223,7 @@ export const register: Register = on => {
     await update($, today, () => [])
     try {
       await pruneOldDays($, dayKey(await $.clock.now(), await localOffset($)))
-      for (const name of GAME_NAMES) await readBest($, name)
+      if (GAMES) for (const name of GAME_NAMES) await readBest($, name)
     } catch {}
     const day = await loadToday($)
     await update($, today, () => day)
@@ -268,7 +269,7 @@ export const register: Register = on => {
 
   // A game board reports a finished game's score; the best one per game is kept.
   on('ui.message', async ($, e, next) => {
-    if (e.element !== 'snake' && e.element !== 'dino') return next(e)
+    if (!GAMES || (e.element !== 'snake' && e.element !== 'dino')) return next(e)
     const data = e.data as { score?: unknown } | null
     const score = typeof data?.score === 'number' ? data.score : 0
     await saveBest($, e.element, score)
@@ -311,11 +312,12 @@ export const register: Register = on => {
         {tabButton('tab-session', '1', 'session', 'talk')}
         {tabButton('tab-today', '2', 'today', 'project')}
         {tabButton('tab-all', '3', 'all', 'all')}
-        {tabButton('tab-game', '4', 'game', 'game')}
+        {GAMES && tabButton('tab-game', '4', 'game', 'game')}
       </Box>
     )
 
-    if (current === 'game') {
+    // GAMES:BEGIN (scripts/make-nogame.sh leaves out everything from here to GAMES:END)
+    if (GAMES && current === 'game') {
       const view = await read($, game)
       if (view === 'menu') {
         // Each item's number is its key: on the menu, 1 and 2 pick a game (they win over the tabs' 1 and 2,
@@ -381,6 +383,7 @@ export const register: Register = on => {
         </Box>
       )
     }
+    // GAMES:END
 
     // Files grouped under their folder: the folder tag opens the folder, a file row opens the file.
     type Row = { path: string; kind: FileKind; at: number; count: number }
