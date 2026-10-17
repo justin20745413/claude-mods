@@ -1,0 +1,6 @@
+{
+  "name": "all",
+  "version": "0.1.0",
+  "description": "一次安裝這個倉庫裡的全部 mod（file-log、zh-translate）",
+  "dependencies": ["file-log", "zh-translate"]
+}

@@ -5,6 +5,11 @@
   },
   "plugins": [
     {
+      "name": "all",
+      "source": "./all",
+      "description": "一次安裝全部 mod（file-log、zh-translate）"
+    },
+    {
       "name": "file-log",
       "source": "./file-log",
       "description": "右側面板列出修改與新增的檔案"
