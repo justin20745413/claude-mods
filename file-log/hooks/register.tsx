@@ -91,15 +91,34 @@ function basename(path: string): string {
   return path.slice(lastSep(path) + 1)
 }
 
-// The same Windows file can arrive as 'c:\…' or 'C:\…': the drive letter is upper-cased
-// so it is recorded once and matches the session's folder.
+// A drive path (C:\…, c:/…) or a network path (\\server\share\…).
+function isWindowsPath(path: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(path) || path.startsWith('\\\\')
+}
+
+// The same Windows file can arrive as 'c:\…', 'C:\…' or 'C:/…': a Windows path is
+// recorded with '\' separators and an upper-case drive letter. Other paths are kept as is.
 function normPath(path: string): string {
-  return /^[a-z]:[\\/]/.test(path) ? path[0].toUpperCase() + path.slice(1) : path
+  if (!isWindowsPath(path)) return path
+  const p = path.replace(/\//g, '\\')
+  return /^[a-z]:/.test(p) ? p[0].toUpperCase() + p.slice(1) : p
+}
+
+// What two paths are compared by. Windows ignores case in file names, so a Windows
+// path compares lower-cased. macOS and Linux paths compare as they are: a volume
+// there can be case-sensitive, and the system already reports a file's own case.
+function pathKey(path: string): string {
+  return isWindowsPath(path) ? normPath(path).toLowerCase() : path
+}
+
+function samePath(a: string, b: string): boolean {
+  return pathKey(a) === pathKey(b)
 }
 
 function isUnder(path: string, dir: string): boolean {
-  const p = normPath(path)
-  const d = normPath(dir)
+  const p = pathKey(path)
+  // 'C:\' and '/' end in a separator already.
+  const d = pathKey(dir).replace(/[\\/]+$/, '')
   return p.startsWith(d + '/') || p.startsWith(d + '\\')
 }
 
@@ -186,9 +205,14 @@ function clockText(ms: number, offset: number): string {
   return shifted(ms, offset).toISOString().slice(11, 16)
 }
 
+// The part of a path below dir, once isUnder(path, dir) holds.
+function below(path: string, dir: string): string {
+  return path.slice(dir.replace(/[\\/]+$/, '').length + 1)
+}
+
 function shortPath(path: string, cwd: string, home: string): string {
-  if (cwd && isUnder(path, cwd)) return path.slice(cwd.length + 1)
-  if (home && isUnder(path, home)) return '~/' + path.slice(home.length + 1)
+  if (cwd && isUnder(path, cwd)) return below(path, cwd)
+  if (home && isUnder(path, home)) return '~/' + below(path, home)
   return path
 }
 
@@ -212,9 +236,9 @@ async function record($: EngineInterface, rawPath: string, kind: FileKind): Prom
   const at = await $.clock.now()
 
   await update($, files, list => {
-    const found = list.find(f => f.path === path)
+    const found = list.find(f => samePath(f.path, path))
     if (!found) return [...list, { path, kind, count: 1, at }]
-    return list.map(f => (f.path === path ? { ...f, count: f.count + 1, at } : f))
+    return list.map(f => (samePath(f.path, path) ? { ...f, count: f.count + 1, at } : f))
   })
 
   const offset = await localOffset($)
@@ -223,7 +247,7 @@ async function record($: EngineInterface, rawPath: string, kind: FileKind): Prom
   const cwd = normPath(await $.session.cwd())
   const stored = await $.store.get(key)
   const day: DayEntry[] = Array.isArray(stored) ? (stored as DayEntry[]) : []
-  const index = day.findIndex(d => d.session === session && d.path === path)
+  const index = day.findIndex(d => d.session === session && samePath(d.path, path))
   const old = index === -1 ? undefined : day[index]
   if (old) {
     day[index] = { ...old, at }
@@ -431,11 +455,17 @@ export const register: Register = on => {
     // Files grouped under their folder: the folder tag opens the folder, a file row opens the file.
     type Row = { path: string; kind: FileKind; at: number; count: number }
     const fileList = (rows: Row[], base: string, withTime: boolean) => {
-      const groups = new Map<string, Row[]>()
-      for (const r of rows) groups.set(dirname(r.path), [...(groups.get(dirname(r.path)) ?? []), r])
+      // Keyed by pathKey so one Windows folder spelled in two cases is one group.
+      const groups = new Map<string, { dir: string; list: Row[] }>()
+      for (const r of rows) {
+        const dir = dirname(r.path)
+        const group = groups.get(pathKey(dir))
+        if (group) group.list.push(r)
+        else groups.set(pathKey(dir), { dir, list: [r] })
+      }
       const out = []
-      for (const [dir, list] of groups) {
-        const label = base && dir === base ? basename(base) : shortPath(dir, base, homeDir)
+      for (const { dir, list } of groups.values()) {
+        const label = base && samePath(dir, base) ? basename(base) : shortPath(dir, base, homeDir)
         out.push(
           <Button key={'dir:' + dir} plain onPress={() => openFolder($, dir)}>
             <Text color="cyan">📁 {fit(label + '/', width - 3)}</Text>
@@ -462,16 +492,16 @@ export const register: Register = on => {
       const latest = new Map<string, DayEntry>()
       for (const d of await read($, today)) {
         // "project" keeps files that live inside this project's folder, whichever session changed them.
-        // Records from before normPath may still carry a lower-case drive letter.
+        // Records from before normPath may still carry another spelling of the same path.
         const path = normPath(d.path)
-        if (!everyProject && path !== normPath(cwd) && !isUnder(path, cwd)) continue
-        const seen = latest.get(path)
-        if (!seen || seen.at < d.at) latest.set(path, { ...d, path })
+        if (!everyProject && !samePath(path, cwd) && !isUnder(path, cwd)) continue
+        const seen = latest.get(pathKey(path))
+        if (!seen || seen.at < d.at) latest.set(pathKey(path), { ...d, path })
       }
       const day = [...latest.values()].sort((a, b) => b.at - a.at)
       const all = await read($, today)
-      const sessions = new Set(all.filter(d => latest.has(normPath(d.path))).map(d => d.session)).size
-      const projects = new Set(day.map(d => normPath(d.cwd))).size
+      const sessions = new Set(all.filter(d => latest.has(pathKey(d.path))).map(d => d.session)).size
+      const projects = new Set(day.map(d => pathKey(d.cwd))).size
       return (
         <Box flexDirection="column">
           {tabs}
