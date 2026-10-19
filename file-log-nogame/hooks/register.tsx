@@ -91,8 +91,16 @@ function basename(path: string): string {
   return path.slice(lastSep(path) + 1)
 }
 
+// The same Windows file can arrive as 'c:\…' or 'C:\…': the drive letter is upper-cased
+// so it is recorded once and matches the session's folder.
+function normPath(path: string): string {
+  return /^[a-z]:[\\/]/.test(path) ? path[0].toUpperCase() + path.slice(1) : path
+}
+
 function isUnder(path: string, dir: string): boolean {
-  return path.startsWith(dir + '/') || path.startsWith(dir + '\\')
+  const p = normPath(path)
+  const d = normPath(dir)
+  return p.startsWith(d + '/') || p.startsWith(d + '\\')
 }
 
 async function isWindows($: EngineInterface): Promise<boolean> {
@@ -199,7 +207,8 @@ async function loadToday($: EngineInterface): Promise<DayEntry[]> {
   return Array.isArray(value) ? (value as DayEntry[]) : []
 }
 
-async function record($: EngineInterface, path: string, kind: FileKind): Promise<void> {
+async function record($: EngineInterface, rawPath: string, kind: FileKind): Promise<void> {
+  const path = normPath(rawPath)
   const at = await $.clock.now()
 
   await update($, files, list => {
@@ -211,7 +220,7 @@ async function record($: EngineInterface, path: string, kind: FileKind): Promise
   const offset = await localOffset($)
   const key = dayKey(at, offset)
   const session = await $.session.id()
-  const cwd = await $.session.cwd()
+  const cwd = normPath(await $.session.cwd())
   const stored = await $.store.get(key)
   const day: DayEntry[] = Array.isArray(stored) ? (stored as DayEntry[]) : []
   const index = day.findIndex(d => d.session === session && d.path === path)
@@ -385,14 +394,16 @@ export const register: Register = on => {
       const latest = new Map<string, DayEntry>()
       for (const d of await read($, today)) {
         // "project" keeps files that live inside this project's folder, whichever session changed them.
-        if (!everyProject && d.path !== cwd && !isUnder(d.path, cwd)) continue
-        const seen = latest.get(d.path)
-        if (!seen || seen.at < d.at) latest.set(d.path, d)
+        // Records from before normPath may still carry a lower-case drive letter.
+        const path = normPath(d.path)
+        if (!everyProject && path !== normPath(cwd) && !isUnder(path, cwd)) continue
+        const seen = latest.get(path)
+        if (!seen || seen.at < d.at) latest.set(path, { ...d, path })
       }
       const day = [...latest.values()].sort((a, b) => b.at - a.at)
       const all = await read($, today)
-      const sessions = new Set(all.filter(d => latest.has(d.path)).map(d => d.session)).size
-      const projects = new Set(day.map(d => d.cwd)).size
+      const sessions = new Set(all.filter(d => latest.has(normPath(d.path))).map(d => d.session)).size
+      const projects = new Set(day.map(d => normPath(d.cwd))).size
       return (
         <Box flexDirection="column">
           {tabs}
