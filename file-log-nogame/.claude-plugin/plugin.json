@@ -1,6 +1,6 @@
 {
   "name": "file-log-nogame",
-  "version": "0.9.7",
+  "version": "0.9.8",
   "description": "右側面板列出這次對話修改與新增的檔案，並可查看今天所有對話的紀錄（不含小遊戲）",
   "types": "./types/index.d.ts"
 }

@@ -456,9 +456,19 @@ export const register: Register = on => {
         {list.length === 0 ? (
           <Text dimColor>這次對話還沒有修改檔案。</Text>
         ) : (
-          <Text dimColor>
-            <Text color="green">＋ 新增 {created}</Text> · <Text color="yellow">✎ 修改 {list.length - created}</Text>
-          </Text>
+          <Box flexDirection="row" gap={1}>
+            <Text dimColor>
+              <Text color="green">＋ 新增 {created}</Text> · <Text color="yellow">✎ 修改 {list.length - created}</Text>
+            </Text>
+            {/* Empties this tab only: today's records under project / all stay. */}
+            <Button
+              key="clear-talk"
+              hotkey="c"
+              variant="secondary"
+              label="清除"
+              onPress={() => update($, files, () => [])}
+            />
+          </Box>
         )}
         {fileList(list, cwd, false)}
       </Box>
