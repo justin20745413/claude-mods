@@ -77,14 +77,30 @@ async function onPad($: EngineInterface, value: string): Promise<void> {
   for (const ch of typed) await update($, gameCmd, c => ({ seq: c.seq + 1, key: ch.toLowerCase() }))
 }
 
+// Both separators count: Windows paths use '\'.
+function lastSep(path: string): number {
+  return Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+}
+
 function dirname(path: string): string {
-  const i = path.lastIndexOf('/')
+  const i = lastSep(path)
   return i <= 0 ? '/' : path.slice(0, i)
 }
 
 function basename(path: string): string {
-  return path.slice(path.lastIndexOf('/') + 1)
+  return path.slice(lastSep(path) + 1)
 }
+
+function isUnder(path: string, dir: string): boolean {
+  return path.startsWith(dir + '/') || path.startsWith(dir + '\\')
+}
+
+async function isWindows($: EngineInterface): Promise<boolean> {
+  return (await $.env.get('OS')) === 'Windows_NT'
+}
+
+// Files Windows would run rather than show when handed to their default app.
+const RUNNABLE = /\.(bat|cmd|exe|com|msi|ps1|vbs|vbe|js|jse|wsf|wsh|scr|lnk|reg)$/i
 
 // Opens a file in the editor this terminal runs inside (a VS Code-family app), else the default app.
 async function openFile($: EngineInterface, path: string): Promise<void> {
@@ -94,6 +110,19 @@ async function openFile($: EngineInterface, path: string): Promise<void> {
       return
     }
     const termProgram = await $.env.get('TERM_PROGRAM')
+    if (await isWindows($)) {
+      // `code` is a .cmd on Windows, so it goes through cmd.
+      if (termProgram === 'vscode') {
+        const run = await $.process.run(['cmd', '/c', 'code', '-r', path], { timeoutMs: 5000 })
+        if (run.exitCode === 0) return
+      }
+      // A runnable file is shown selected in Explorer instead of being run.
+      const argv = RUNNABLE.test(path)
+        ? ['explorer', '/select,' + path]
+        : ['rundll32', 'url.dll,FileProtocolHandler', path]
+      await $.process.run(argv, { timeoutMs: 5000 })
+      return
+    }
     const bundle = await $.env.get('__CFBundleIdentifier')
     const argv = termProgram === 'vscode' && bundle ? ['open', '-b', bundle, path] : ['open', path]
     const run = await $.process.run(argv, { timeoutMs: 5000 })
@@ -103,11 +132,16 @@ async function openFile($: EngineInterface, path: string): Promise<void> {
   }
 }
 
-// Shows a folder in Finder.
+// Shows a folder in Finder, or Explorer on Windows.
 async function openFolder($: EngineInterface, dir: string): Promise<void> {
   try {
     if (!(await $.fs.exists(dir))) {
       $.ui.toast(`資料夾已不存在：${dir}`)
+      return
+    }
+    // explorer.exe exits 1 even when it opened the folder, so its exit code says nothing.
+    if (await isWindows($)) {
+      await $.process.run(['explorer', dir], { timeoutMs: 5000 })
       return
     }
     const run = await $.process.run(['open', dir], { timeoutMs: 5000 })
@@ -145,8 +179,8 @@ function clockText(ms: number, offset: number): string {
 }
 
 function shortPath(path: string, cwd: string, home: string): string {
-  if (cwd && path.startsWith(cwd + '/')) return path.slice(cwd.length + 1)
-  if (home && path.startsWith(home + '/')) return '~/' + path.slice(home.length + 1)
+  if (cwd && isUnder(path, cwd)) return path.slice(cwd.length + 1)
+  if (home && isUnder(path, home)) return '~/' + path.slice(home.length + 1)
   return path
 }
 
@@ -419,7 +453,7 @@ export const register: Register = on => {
       const latest = new Map<string, DayEntry>()
       for (const d of await read($, today)) {
         // "project" keeps files that live inside this project's folder, whichever session changed them.
-        if (!everyProject && d.path !== cwd && !d.path.startsWith(cwd + '/')) continue
+        if (!everyProject && d.path !== cwd && !isUnder(d.path, cwd)) continue
         const seen = latest.get(d.path)
         if (!seen || seen.at < d.at) latest.set(d.path, d)
       }
